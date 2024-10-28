@@ -1,3 +1,4 @@
+import os
 import argparse
 import random
 import torch
@@ -18,7 +19,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser(description="TRT_PRAC", add_help=False)
     parser.add_argument(
         "--model",
-        default="vit_base",
+        default="deit_tiny",
         choices=[
             "vit_small",
             "vit_base",
@@ -33,13 +34,8 @@ def get_args_parser():
     parser.add_argument("--dataset", default="data/imagenet/", help="path to dataset")
     parser.add_argument(
         "--precision",
-        default="int8",
-        choices=[
-            "org",
-            "fp32",
-            "fp16",
-            "int8",
-        ],
+        default="fp8",
+        choices=["org", "fp32", "fp16", "int8", "int8mtq", "fp8"],  # fp8 is fp8_e4m3fn
         help="precision",
     )
     parser.add_argument(
@@ -85,20 +81,20 @@ def quantize_model(model, precision="fp16", calib_loader=None, args=None):
 
     print("Precision: ", precision)
 
-    model = torch.jit.script(model, example_inputs=INPUT).eval().cuda()
-    assert torchtrt.ts.check_method_op_support(model)
-
-    compile_spec = {
-        "inputs": INPUT,
-        # "workspace_size": 1 << 22,
-        "truncate_long_and_double": True,
-        "device": {
-            "device_type": torchtrt.DeviceType.GPU,
-            "gpu_id": 0,
-            "dla_core": 0,
-            "allow_gpu_fallback": False,
-        },
-    }
+    if precision in ["fp32", "fp16", "int8"]:
+        model = torch.jit.script(model, example_inputs=INPUT).eval().cuda()
+        assert torchtrt.ts.check_method_op_support(model)
+        compile_spec = {
+            "inputs": INPUT,
+            # "workspace_size": 1 << 22,
+            "truncate_long_and_double": True,
+            "device": {
+                "device_type": torchtrt.DeviceType.GPU,
+                "gpu_id": 0,
+                "dla_core": 0,
+                "allow_gpu_fallback": False,
+            },
+        }
 
     if precision == "fp32":
         # Average throughput: 1246.62 images/second
@@ -142,6 +138,100 @@ def quantize_model(model, precision="fp16", calib_loader=None, args=None):
     elif precision == "int4":
         raise NotImplementedError
 
+    elif precision == "int8mtq" or precision == "fp8":
+        ## REF
+        # https://github.com/pytorch/TensorRT/blob/6d40ff1442572b8808961689c5ecb4ee5c975456/examples/dynamo/vgg16_ptq.py#L7
+        import modelopt.torch.quantization as mtq
+        from modelopt.torch.quantization.utils import export_torch_mode
+        from torch.export._trace import _export
+
+        data = iter(calib_loader)
+        images, _ = next(data)
+
+        crit = nn.CrossEntropyLoss()
+
+        def calibrate_loop(model):
+            # calibrate over the training dataset
+            total = 0
+            correct = 0
+            loss = 0.0
+            for data, labels in calib_loader:
+                data, labels = data.cuda(), labels.cuda(non_blocking=True)
+                out = model(data)
+                loss += crit(out, labels)
+                preds = torch.max(out, 1)[1]
+                total += labels.size(0)
+                correct += (preds == labels).sum().item()
+
+            print(
+                "PTQ Loss: {:.5f} Acc: {:.2f}%".format(
+                    loss / total, 100 * correct / total
+                )
+            )
+
+        if precision == "int8mtq":
+            # Average throughput: 1084.79 images/second
+            # * Prec@1 71.862 Prec@5 90.854 Time 384.665
+            quant_cfg = mtq.INT8_DEFAULT_CFG
+            enabled_precisions = {torch.int8}
+        elif precision == "fp8":
+            raise f"RTX30xx does not support fp8"
+            quant_cfg = mtq.FP8_DEFAULT_CFG
+            enabled_precisions = {torch.float8_e4m3fn}
+
+        # PTQ with in-place replacement to quantized modules
+        mtq.quantize(model, quant_cfg, forward_loop=calibrate_loop)
+
+        with export_torch_mode():
+            # Compile the model with Torch-TensorRT Dynamo backend
+            input_tensor = images.cuda()
+            # torch.export.export() failed due to RuntimeError: Attempting to use FunctionalTensor on its own. Instead, please use it with a corresponding FunctionalTensorMode()
+
+            # TODO: Using torchscript, not dynamo
+            exp_program = _export(model, (input_tensor,))
+
+            trt_model_int8 = torchtrt.dynamo.compile(
+                exp_program,
+                inputs=[input_tensor],
+                enabled_precisions=enabled_precisions,
+                min_block_size=1,
+                debug=False,
+            )
+
+        return trt_model_int8
+
+
+def get_model_size(model, input_shape=(1, 3, 224, 224)):
+    # TODO : make it
+    return
+    # https://pytorch.org/TensorRT/user_guide/saving_models.html
+    model.cuda().eval()
+    # inputs = [torch.randn(input_shape).cuda()]
+    path = None
+    try:
+        path = "tmp.pth"
+        torch.save(model, path)
+    except:
+        try:
+            path = "tmp.ep"
+            torchtrt.save(model, path)
+        except:
+            try:
+                path = "tmp.ts"
+                torch.jit.save(model, path)
+            except:
+                try:
+                    path = "tmp.ts"
+                    torch.jit.save(torch.jit.script(model), path)
+                except:
+                    raise ValueError("Failed to save model")
+
+    size = os.path.getsize(path)
+    print(f"model size: {size / 1024 / 1024:.2f} MB")
+    os.remove(path)
+
+    return size
+
 
 def main():
     print(args)
@@ -173,6 +263,7 @@ def main():
     # Average throughput: 291.55 images/second
     model = timm.create_model(model_zoo[args.model], pretrained=True).cuda().eval()
     # benchmark(model=model, input_shape=(1, 3, 224, 224), dtype="int8", nruns=100)
+    get_model_size(model)
 
     out_model = quantize_model(
         model,
@@ -180,6 +271,7 @@ def main():
         calib_loader=calib_loader,
         args=args,
     )
+    get_model_size(out_model)
 
     benchmark(model=out_model, input_shape=(1, 3, 224, 224), dtype="int8", nruns=100)
 
