@@ -34,7 +34,7 @@ def get_args_parser():
     parser.add_argument("--dataset", default="data/imagenet/", help="path to dataset")
     parser.add_argument(
         "--precision",
-        default="fp8",
+        default="int8mtq",
         choices=["org", "fp32", "fp16", "int8", "int8mtq", "fp8"],  # fp8 is fp8_e4m3fn
         help="precision",
     )
@@ -203,6 +203,7 @@ def quantize_model(model, precision="fp16", calib_loader=None, args=None):
 
 def get_model_size(model, input_shape=(1, 3, 224, 224)):
     # TODO : make it
+    print("model type is:", type(model))
     return
     # https://pytorch.org/TensorRT/user_guide/saving_models.html
     model.cuda().eval()

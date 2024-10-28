@@ -102,9 +102,9 @@ def vgg16(num_classes=1000, init_weights=False):
 PARSER = argparse.ArgumentParser(
     description="Load pre-trained VGG model and then tune with FP8 and PTQ. For having a pre-trained VGG model, please refer to https://github.com/pytorch/TensorRT/tree/main/examples/int8/training/vgg16"
 )
-# PARSER.add_argument(
-#     "--ckpt", type=str, required=True, help="Path to the pre-trained checkpoint"
-# )
+PARSER.add_argument(
+    "--ckpt", type=str, required=True, help="Path to the pre-trained checkpoint"
+)
 PARSER.add_argument(
     "--batch-size",
     default=128,
@@ -126,36 +126,33 @@ model = model.cuda()
 # Load the pre-trained model weights
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-# ckpt = torch.load(args.ckpt)
-# weights = ckpt["model_state_dict"]
+ckpt = torch.load(args.ckpt)
+weights = ckpt["model_state_dict"]
 
-# if torch.cuda.device_count() > 1:
-#     from collections import OrderedDict
+if torch.cuda.device_count() > 1:
+    from collections import OrderedDict
 
-#     new_state_dict = OrderedDict()
-#     for k, v in weights.items():
-#         name = k[7:]  # remove `module.`
-#         new_state_dict[name] = v
-#     weights = new_state_dict
+    new_state_dict = OrderedDict()
+    for k, v in weights.items():
+        name = k[7:]  # remove `module.`
+        new_state_dict[name] = v
+    weights = new_state_dict
 
-# model.load_state_dict(weights)
-# # Don't forget to set the model to evaluation mode!
-# model.eval()
-import timm
+model.load_state_dict(weights)
+# Don't forget to set the model to evaluation mode!
+model.eval()
 
-model = timm.create_model("deit_tiny_patch16_224", pretrained=True).to("cuda")
 # %%
 # Load training dataset and define loss function for PTQ
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 training_dataset = datasets.CIFAR10(
-    root="data",
+    root="./data",
     train=True,
     download=True,
     transform=transforms.Compose(
         [
             transforms.RandomCrop(32, padding=4),
-            transforms.Resize(224),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
@@ -213,13 +210,12 @@ mtq.quantize(model, quant_cfg, forward_loop=calibrate_loop)
 
 # Load the testing dataset
 testing_dataset = datasets.CIFAR10(
-    root="data",
+    root="./data",
     train=False,
     download=True,
     transform=transforms.Compose(
         [
             transforms.ToTensor(),
-            transforms.Resize(224),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ]
     ),
@@ -241,7 +237,6 @@ with torch.no_grad():
         from torch.export._trace import _export
 
         exp_program = _export(model, (input_tensor,))
-        print(args.quantize_type)
         if args.quantize_type == "int8":
             enabled_precisions = {torch.int8}
         elif args.quantize_type == "fp8":
@@ -253,7 +248,6 @@ with torch.no_grad():
             min_block_size=1,
             debug=False,
         )
-
         # You can also use torch compile path to compile the model with Torch-TensorRT:
         # trt_model = torch.compile(model, backend="tensorrt")
 
