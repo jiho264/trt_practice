@@ -139,6 +139,9 @@ def quantize_model(model, precision="fp16", calib_loader=None, args=None):
         raise NotImplementedError
 
     elif precision == "int8mtq" or precision == "fp8":
+        """
+        dynamo는 C++에서 실행 불가능함. python에서 동적 최적화하는 것임.
+        """
         ## REF
         # https://github.com/pytorch/TensorRT/blob/6d40ff1442572b8808961689c5ecb4ee5c975456/examples/dynamo/vgg16_ptq.py#L7
         import modelopt.torch.quantization as mtq
