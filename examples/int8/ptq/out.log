@@ -1,0 +1,70 @@
+https://github.com/pytorch/TensorRT/tree/6d40ff1442572b8808961689c5ecb4ee5c975456/examples/int8/ptq
+
+
+
+
+make
+
+
+
+./ptq ~/Desktop/trt_practice/examples/int8/training/vgg16/trained_vgg16.jit.pt ~/Desktop/trt_practice/examples/int8/training/vgg16/data/cifar-10-batches-bin
+
+
+
+Compiling and quantizing module
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Dilation not used in Max pooling converter
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Dilation not used in Max pooling converter
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Dilation not used in Max pooling converter
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Dilation not used in Max pooling converter
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Truncating weight (constant in the graph) from Int64 to Int32
+WARNING: [Torch-TensorRT] - Dilation not used in Max pooling converter
+Accuracy of JIT model on test set: 90.2188%
+Accuracy of quantized model on test set: 91.8125%
+[JIT model FP32]: batch_size: 32
+    Average latency: 2.16224 ms
+    Average FPS: 14799.5 fps
+    Latency Standard Deviation: 0.0532216
+    FPS Standard Deviation: 343.594
+(excluding initial warmup runs)
+[TRT quantized model]: batch_size: 32
+    Average latency: 0.277856 ms
+    Average FPS: 115168 fps
+    Latency Standard Deviation: 0.0213169
+    FPS Standard Deviation: 5125.68
+(excluding initial warmup runs)
+
+
+
+
+/tmp/ptq_vgg16.trt.ts
+-rw-rw-r--  1 lee  lee  46469763 10월 29 21:33 ptq_vgg16.trt.ts
+
+~/Desktop/trt_practice/examples/int8/training/vgg16
+-rw-rw-r-- 1 lee lee 134727885 10월 29 21:26 trained_vgg16.jit.pt
+
+128MB -> 44MB

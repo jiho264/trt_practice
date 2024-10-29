@@ -4,3 +4,6 @@
 **.cache
 **/**.pyc
 **/**.ep
+deps
+**/**.tar.gz
+**/**.tar
