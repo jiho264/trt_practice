@@ -59,12 +59,25 @@ model.load_state_dict(weights)
 
 # Setting eval here causes both JIT and TRT accuracy to tank in LibTorch will follow up with PyTorch Team
 # model.eval()
+BATCHSIZE = 1
+# mode = "trace"
+mode = "script"
+jit_model = None
+if mode == "script":
+    jit_model = torch.jit.script(model, torch.rand([BATCHSIZE, 3, 32, 32]).to("cuda"))
+    # batch1 == [JIT] Test Loss: 0.00919 Test Acc: 92.79%
+    # batch32 == [JIT] Test Loss: 0.00919 Test Acc: 92.79%
+elif mode == "trace":
+    jit_model = torch.jit.trace(
+        model, torch.rand([BATCHSIZE, 3, 32, 32]).to("cuda")
+    )  # org
+    # batch1 == [JIT] Test Loss: 1.74630 Test Acc: 47.36%
+    # batch32 == [JIT] Test Loss: 0.01280 Test Acc: 90.58%
 
-jit_model = torch.jit.trace(model, torch.rand([32, 3, 32, 32]).to("cuda"))
 jit_model.eval()
 
 testing_dataset = datasets.CIFAR10(
-    root="./data",
+    root="~/Datasets",
     train=False,
     download=True,
     transform=transforms.Compose(
@@ -76,11 +89,11 @@ testing_dataset = datasets.CIFAR10(
 )
 
 testing_dataloader = torch.utils.data.DataLoader(
-    testing_dataset, batch_size=32, shuffle=False, num_workers=2
+    testing_dataset, batch_size=BATCHSIZE, shuffle=False, num_workers=2
 )
 
 crit = torch.nn.CrossEntropyLoss()
 
 test_loss, test_acc = test(jit_model, testing_dataloader, crit)
 print("[JIT] Test Loss: {:.5f} Test Acc: {:.2f}%".format(test_loss, 100 * test_acc))
-torch.jit.save(jit_model, "trained_vgg16.jit.pt")
+torch.jit.save(jit_model, f"trained_vgg16_batch{BATCHSIZE}_{mode}.jit.pt")

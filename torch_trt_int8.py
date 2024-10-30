@@ -31,10 +31,12 @@ def get_args_parser():
         ],
         help="model",
     )
-    parser.add_argument("--dataset", default="data/imagenet/", help="path to dataset")
+    parser.add_argument(
+        "--dataset", default="~/Datasets/ImageNet", help="path to dataset"
+    )
     parser.add_argument(
         "--precision",
-        default="int8mtq",
+        default="int8",
         choices=["org", "fp32", "fp16", "int8", "int8mtq", "fp8"],  # fp8 is fp8_e4m3fn
         help="precision",
     )
@@ -110,27 +112,23 @@ def quantize_model(model, precision="fp16", calib_loader=None, args=None):
 
     elif precision == "int8":
         assert calib_loader is not None
-        # Average throughput: 1996.48 images/second
+        # Average throughput: 1181.51 images/second
         # TODO: Implement int8 quantization
         # now using fp16...
         # https://github.com/pytorch/TensorRT/tree/main/tests/py/ts
-        # https://github.com/pytorch/TensorRT/blob/main/tests/py/ts/ptq/test_ptq_dataloader_calibrator.py
 
         calibrator = PTQ.DataLoaderCalibrator(
             calib_loader,
             cache_file="./calibration.cache",
-            use_cache=False,
+            use_cache=True,
             algo_type=PTQ.CalibrationAlgo.ENTROPY_CALIBRATION_2,
             device=torch.device("cuda:0"),
         )
         compile_spec["calibrator"] = calibrator
         compile_spec["enabled_precisions"] = {torch.int8}
 
-        # with torchtrt.logging.debug():
-        # torch.compile -> determine the ir len (torchscript) -> torch.ts.compile -> compiled C lang::CompileGraph
-        # https://pytorch.org/TensorRT/ts/ptq.html#ptq
-        # https://pytorch.org/TensorRT/_cpp_api/function_namespacetorch__tensorrt_1_1torchscript_1a6e19490a08fb1553c9dd347a5ae79db9.html#exhale-function-namespacetorch-tensorrt-1-1torchscript-1a6e19490a08fb1553c9dd347a5ae79db9
-        trt_model_int8 = torchtrt.compile(model, **compile_spec)
+        trt_model_int8 = torchtrt.ts.compile(model, **compile_spec)
+        torch.jit.save(trt_model_int8, f"trt_model_{precision}.pth")
         print("calibration is done")
 
         return trt_model_int8
